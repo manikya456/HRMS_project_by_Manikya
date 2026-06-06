@@ -1,0 +1,15 @@
+backend/.env
+frontend/.env
+backend/.venv/
+venv/
+.venv/
+frontend/node_modules/
+backend/media/
+backend/staticfiles/
+__pycache__/
+*.pyc
+*.tsbuildinfo
+.DS_Store
+dist/
+build/
+node_modules/
