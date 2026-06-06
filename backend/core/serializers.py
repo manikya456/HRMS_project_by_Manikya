@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from rest_framework import serializers
 
 from .models import ActivityLog, Attendance, Employee, EmployeeDocument, LeaveRequest, Notification, Payroll, Performance
@@ -8,6 +9,7 @@ User = get_user_model()
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(read_only=True, required=False)
     user_email = serializers.EmailField(source="user.email", read_only=True)
     user_username_display = serializers.CharField(source="user.username", read_only=True)
     user_role_display = serializers.CharField(source="user.role", read_only=True)
@@ -50,6 +52,32 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
+    def validate(self, attrs):
+        employee_id = attrs.get("employee_id")
+        if employee_id:
+            qs = Employee.objects.filter(employee_id=employee_id)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError({"employee_id": "This employee ID already exists."})
+
+        user_username = attrs.get("user_username")
+        user_email_input = attrs.get("user_email_input")
+        if user_username:
+            qs = User.objects.filter(username=user_username)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.user_id)
+            if qs.exists():
+                raise serializers.ValidationError({"user_username": "This username is already in use."})
+        if user_email_input:
+            qs = User.objects.filter(email=user_email_input)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.user_id)
+            if qs.exists():
+                raise serializers.ValidationError({"user_email_input": "This email is already in use."})
+        return attrs
+
+    @transaction.atomic
     def create(self, validated_data):
         user_payload = {
             "username": validated_data.pop("user_username", None),
@@ -74,6 +102,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
             validated_data["user"] = user
         return super().create(validated_data)
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         user = instance.user
         for field, attr in [

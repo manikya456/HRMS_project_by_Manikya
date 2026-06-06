@@ -12,6 +12,7 @@ import ResumeScreeningPage from "@/pages/ResumeScreening";
 import VoiceInterviewPage from "@/pages/VoiceInterview";
 import AnalyticsPage from "@/pages/Analytics";
 import SettingsPage from "@/pages/Settings";
+import ProfilePage from "@/pages/Profile";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
 
@@ -117,6 +118,16 @@ export default function App() {
           <ProtectedRoute>
             <AppShell>
               <AnalyticsPage />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <ProfilePage />
             </AppShell>
           </ProtectedRoute>
         }

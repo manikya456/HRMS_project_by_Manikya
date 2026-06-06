@@ -2,7 +2,7 @@ from django.utils import timezone
 from rest_framework import decorators, permissions, response, status, viewsets
 from rest_framework.filters import SearchFilter
 
-from accounts.permissions import IsAdminOrHR, IsAdminOnly
+from accounts.permissions import CanManageEmployees, CanViewEmployeeManagement, IsAdminOrHR, IsAdminOnly
 from .models import ActivityLog, Attendance, Employee, EmployeeDocument, LeaveRequest, Notification, Payroll, Performance
 from .serializers import (
     ActivityLogSerializer,
@@ -22,7 +22,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     filter_backends = [SearchFilter]
     search_fields = ["employee_id", "full_name", "department", "designation"]
-    permission_classes = [IsAdminOrHR]
+    permission_classes = [CanViewEmployeeManagement]
+
+    def get_permissions(self):
+        if self.action in {"create", "update", "partial_update", "destroy"}:
+            return [CanManageEmployees()]
+        return super().get_permissions()
 
     def perform_create(self, serializer):
         obj = serializer.save()

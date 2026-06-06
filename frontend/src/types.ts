@@ -12,10 +12,28 @@ export type User = {
     id: number;
     employee_id: string;
     full_name: string;
+    department?: string;
+    designation?: string;
+    status?: string;
+    joining_date?: string;
+    phone?: string;
+    address?: string;
+    salary?: string;
+    manager?: {
+      id: number;
+      employee_id: string;
+      full_name: string;
+    } | null;
   };
   candidate_profile?: {
     id: number;
     name: string;
+    email?: string;
+    phone?: string;
+    applied_position?: {
+      id: number;
+      title: string;
+    } | null;
   };
 };
 

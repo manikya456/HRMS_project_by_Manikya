@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 type Employee = {
   id: number;
@@ -64,6 +65,7 @@ const emptyForm: EmployeeForm = {
 };
 
 export default function EmployeesPage() {
+  const { user } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -73,6 +75,8 @@ export default function EmployeesPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<EmployeeForm>(emptyForm);
+  const [showForm, setShowForm] = useState(false);
+  const canManageEmployees = user?.role === "ADMIN" || user?.role === "HR_RECRUITER";
 
   const loadEmployees = async () => {
     setLoading(true);
@@ -109,10 +113,18 @@ export default function EmployeesPage() {
   const resetForm = () => {
     setForm(emptyForm);
     setEditingId(null);
+    setShowForm(false);
+  };
+
+  const openCreateForm = () => {
+    setForm(emptyForm);
+    setEditingId(null);
+    setShowForm(true);
   };
 
   const startEdit = (employee: Employee) => {
     setEditingId(employee.id);
+    setShowForm(true);
     setForm({
       employee_id: employee.employee_id,
       full_name: employee.full_name,
@@ -163,8 +175,17 @@ export default function EmployeesPage() {
       }
       await loadEmployees();
       resetForm();
-    } catch {
-      setError("Failed to save employee. Check the form values and backend permissions.");
+    } catch (error) {
+      const responseData = (error as { response?: { data?: Record<string, unknown> } })?.response?.data;
+      const backendMessage =
+        typeof responseData?.detail === "string"
+          ? responseData.detail
+          : responseData
+            ? Object.entries(responseData)
+                .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`)
+                .join(" | ")
+            : "";
+      setError(backendMessage || "Failed to save employee. Check the form values and backend permissions.");
     } finally {
       setSaving(false);
     }
@@ -181,61 +202,74 @@ export default function EmployeesPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="text-3xl font-semibold">Employee Management</h2>
-          <p className="mt-2 text-slate-500">Add, edit, delete, search, and filter employees by department.</p>
+          <p className="mt-2 text-slate-500">
+            {canManageEmployees
+              ? "Add, edit, delete, search, and filter employees by department."
+              : "View employee records by department and status."}
+          </p>
         </div>
-        <Button onClick={resetForm}>Add Employee</Button>
+        {canManageEmployees ? <Button onClick={openCreateForm}>Add Employee</Button> : null}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
-        <Card>
-          <h3 className="text-lg font-semibold">{editingId ? "Edit Employee" : "New Employee"}</h3>
-          <div className="mt-4 grid gap-3">
-            <Input value={form.employee_id} onChange={(e) => handleChange("employee_id", e.target.value)} placeholder="Employee ID" />
-            <Input value={form.full_name} onChange={(e) => handleChange("full_name", e.target.value)} placeholder="Full name" />
-            <Input value={form.department} onChange={(e) => handleChange("department", e.target.value)} placeholder="Department" />
-            <Input value={form.designation} onChange={(e) => handleChange("designation", e.target.value)} placeholder="Designation" />
-            <Input value={form.salary} onChange={(e) => handleChange("salary", e.target.value)} placeholder="Salary" type="number" />
-            <Input value={form.joining_date} onChange={(e) => handleChange("joining_date", e.target.value)} type="date" />
-            <Select value={form.status} onChange={(e) => handleChange("status", e.target.value)}>
-              <option value="ACTIVE">Active</option>
-              <option value="ONBOARDING">Onboarding</option>
-              <option value="INACTIVE">Inactive</option>
-            </Select>
-            <Input value={form.phone} onChange={(e) => handleChange("phone", e.target.value)} placeholder="Phone" />
-            <Input value={form.address} onChange={(e) => handleChange("address", e.target.value)} placeholder="Address" />
-            <Input value={form.manager} onChange={(e) => handleChange("manager", e.target.value)} placeholder="Manager Employee ID" type="number" />
-            <div className="rounded-2xl bg-slate-100 p-4 dark:bg-slate-900">
-              <p className="text-sm font-semibold">Linked User</p>
-              <div className="mt-3 grid gap-3">
-                <Input value={form.user_username} onChange={(e) => handleChange("user_username", e.target.value)} placeholder="Username" />
-                <Input value={form.user_email_input} onChange={(e) => handleChange("user_email_input", e.target.value)} placeholder="Email" />
-                <Input value={form.user_password} onChange={(e) => handleChange("user_password", e.target.value)} placeholder={editingId ? "New password (optional)" : "Password"} type="password" />
-                <Select value={form.user_role} onChange={(e) => handleChange("user_role", e.target.value)}>
-                  <option value="EMPLOYEE">Employee</option>
-                  <option value="HR_RECRUITER">HR Recruiter</option>
-                  <option value="SENIOR_MANAGER">Senior Manager</option>
-                  <option value="ADMIN">Admin</option>
-                </Select>
-                <div className="grid grid-cols-2 gap-3">
-                  <Input value={form.user_first_name} onChange={(e) => handleChange("user_first_name", e.target.value)} placeholder="First name" />
-                  <Input value={form.user_last_name} onChange={(e) => handleChange("user_last_name", e.target.value)} placeholder="Last name" />
+      <div className={`grid gap-6 ${canManageEmployees && showForm ? "xl:grid-cols-[380px_1fr]" : "xl:grid-cols-1"}`}>
+        {canManageEmployees && showForm ? (
+          <Card>
+            <h3 className="text-lg font-semibold">{editingId ? "Edit Employee" : "New Employee"}</h3>
+            <div className="mt-4 grid gap-3">
+              <Input value={form.employee_id} onChange={(e) => handleChange("employee_id", e.target.value)} placeholder="Employee ID" />
+              <Input value={form.full_name} onChange={(e) => handleChange("full_name", e.target.value)} placeholder="Full name" />
+              <Input value={form.department} onChange={(e) => handleChange("department", e.target.value)} placeholder="Department" />
+              <Input value={form.designation} onChange={(e) => handleChange("designation", e.target.value)} placeholder="Designation" />
+              <Input value={form.salary} onChange={(e) => handleChange("salary", e.target.value)} placeholder="Salary" type="number" />
+              <Input value={form.joining_date} onChange={(e) => handleChange("joining_date", e.target.value)} type="date" />
+              <Select value={form.status} onChange={(e) => handleChange("status", e.target.value)}>
+                <option value="ACTIVE">Active</option>
+                <option value="ONBOARDING">Onboarding</option>
+                <option value="INACTIVE">Inactive</option>
+              </Select>
+              <Input value={form.phone} onChange={(e) => handleChange("phone", e.target.value)} placeholder="Phone" />
+              <Input value={form.address} onChange={(e) => handleChange("address", e.target.value)} placeholder="Address" />
+              <Input value={form.manager} onChange={(e) => handleChange("manager", e.target.value)} placeholder="Manager database ID" type="number" />
+              <div className="rounded-2xl bg-slate-100 p-4 dark:bg-slate-900">
+                <p className="text-sm font-semibold">Linked User</p>
+                <div className="mt-3 grid gap-3">
+                  <Input value={form.user_username} onChange={(e) => handleChange("user_username", e.target.value)} placeholder="Username" />
+                  <Input value={form.user_email_input} onChange={(e) => handleChange("user_email_input", e.target.value)} placeholder="Email" />
+                  <Input value={form.user_password} onChange={(e) => handleChange("user_password", e.target.value)} placeholder={editingId ? "New password (optional)" : "Password"} type="password" />
+                  <Select value={form.user_role} onChange={(e) => handleChange("user_role", e.target.value)}>
+                    <option value="EMPLOYEE">Employee</option>
+                    <option value="HR_RECRUITER">HR Recruiter</option>
+                    <option value="SENIOR_MANAGER">Senior Manager</option>
+                    <option value="ADMIN">Admin</option>
+                  </Select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input value={form.user_first_name} onChange={(e) => handleChange("user_first_name", e.target.value)} placeholder="First name" />
+                    <Input value={form.user_last_name} onChange={(e) => handleChange("user_last_name", e.target.value)} placeholder="Last name" />
+                  </div>
                 </div>
               </div>
+              {error ? <p className="text-sm text-red-500">{error}</p> : null}
+              <div className="flex gap-3">
+                <Button type="button" onClick={submitEmployee} disabled={saving}>
+                  {saving ? "Saving..." : editingId ? "Update Employee" : "Create Employee"}
+                </Button>
+                <Button type="button" variant="secondary" onClick={resetForm}>
+                  Clear
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500">
+                When creating a new employee, the form can create the linked user account inline.
+              </p>
             </div>
-            {error ? <p className="text-sm text-red-500">{error}</p> : null}
-            <div className="flex gap-3">
-              <Button type="button" onClick={submitEmployee} disabled={saving}>
-                {saving ? "Saving..." : editingId ? "Update Employee" : "Create Employee"}
-              </Button>
-              <Button type="button" variant="secondary" onClick={resetForm}>
-                Clear
-              </Button>
-            </div>
-            <p className="text-xs text-slate-500">
-              When creating a new employee, the form can create the linked user account inline.
+          </Card>
+        ) : canManageEmployees ? null : (
+          <Card>
+            <h3 className="text-lg font-semibold">Read Only Access</h3>
+            <p className="mt-2 text-sm text-slate-500">
+              Senior managers can review employee records, but only Admin and HR can add or edit employees.
             </p>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         <Card>
           <div className="grid gap-4 md:grid-cols-4">
@@ -272,7 +306,7 @@ export default function EmployeesPage() {
                     <th className="py-3 pr-4">Department</th>
                     <th className="py-3 pr-4">Designation</th>
                     <th className="py-3 pr-4">Status</th>
-                    <th className="py-3 pr-4">Actions</th>
+                    {canManageEmployees ? <th className="py-3 pr-4">Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -287,16 +321,18 @@ export default function EmployeesPage() {
                       <td className="py-4 pr-4">{employee.department}</td>
                       <td className="py-4 pr-4">{employee.designation}</td>
                       <td className="py-4 pr-4">{employee.status}</td>
-                      <td className="py-4 pr-4">
-                        <div className="flex gap-2">
-                          <Button type="button" variant="secondary" onClick={() => startEdit(employee)}>
-                            Edit
-                          </Button>
-                          <Button type="button" variant="ghost" onClick={() => deleteEmployee(employee.id)}>
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
+                      {canManageEmployees ? (
+                        <td className="py-4 pr-4">
+                          <div className="flex gap-2">
+                            <Button type="button" variant="secondary" onClick={() => startEdit(employee)}>
+                              Edit
+                            </Button>
+                            <Button type="button" variant="ghost" onClick={() => deleteEmployee(employee.id)}>
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

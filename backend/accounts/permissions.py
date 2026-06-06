@@ -16,3 +16,10 @@ class IsAdminOrHR(HasRole):
 class IsAdminOnly(HasRole):
     allowed_roles = ("ADMIN",)
 
+
+class CanViewEmployeeManagement(HasRole):
+    allowed_roles = ("ADMIN", "HR_RECRUITER", "SENIOR_MANAGER")
+
+
+class CanManageEmployees(HasRole):
+    allowed_roles = ("ADMIN", "HR_RECRUITER")

@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
 import {
   BarChart3,
-  Bell,
   BriefcaseBusiness,
   CalendarCheck2,
   ClipboardList,
@@ -70,17 +69,6 @@ export function Sidebar({ role, mobile = false }: { role: Role; mobile?: boolean
           );
         })}
       </nav>
-      <div className="p-4">
-        <div className="rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-4 text-white shadow-soft">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-sky-300">
-            <Bell className="h-4 w-4" />
-            Alerts
-          </div>
-          <p className="mt-3 text-sm text-slate-300">
-            Automated HR alerts, leave approvals, and interview reminders will appear here.
-          </p>
-        </div>
-      </div>
     </aside>
   );
 }

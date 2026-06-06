@@ -39,6 +39,19 @@ class Command(BaseCommand):
         manager.set_password("Manager@12345")
         manager.save()
 
+        manager_employee, _ = Employee.objects.get_or_create(
+            user=manager,
+            defaults={
+                "employee_id": "MGR-1001",
+                "full_name": "Maya Singh",
+                "department": "Engineering",
+                "designation": "Senior Manager",
+                "salary": 180000,
+                "joining_date": timezone.now().date(),
+                "status": Employee.Status.ACTIVE,
+            },
+        )
+
         employee_user, _ = User.objects.get_or_create(
             email="employee@aihrms.local",
             defaults={"username": "employee", "role": User.Role.EMPLOYEE, "first_name": "Evan", "last_name": "Stone"},
@@ -58,6 +71,9 @@ class Command(BaseCommand):
                 "status": Employee.Status.ACTIVE,
             },
         )
+
+        employee.manager = manager_employee
+        employee.save(update_fields=["manager"])
 
         JobOpening.objects.get_or_create(
             title="Senior Django Engineer",

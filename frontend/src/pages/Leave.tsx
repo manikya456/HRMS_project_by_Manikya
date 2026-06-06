@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -36,6 +37,12 @@ const emptyForm: FormState = {
   reason: "",
 };
 
+const statusStyles: Record<string, string> = {
+  APPROVED: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  REJECTED: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+  PENDING: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+};
+
 export default function LeavePage() {
   const { user } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -61,10 +68,11 @@ export default function LeavePage() {
   }, []);
 
   useEffect(() => {
-    if (user?.employee_profile?.id && !form.employee) {
-      setForm((current) => ({ ...current, employee: String(user.employee_profile?.id ?? "") }));
+    const employeeId = user?.employee_profile?.id;
+    if (user?.role === "EMPLOYEE" && employeeId) {
+      setForm((current) => ({ ...current, employee: String(employeeId) }));
     }
-  }, [user?.employee_profile?.id]);
+  }, [user?.employee_profile?.id, user?.role]);
 
   const visibleLeaves = useMemo(
     () =>
@@ -141,21 +149,25 @@ export default function LeavePage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-semibold">Leave Management</h2>
-        <p className="mt-2 text-slate-500">Apply, approve, reject, and view AI leave recommendations.</p>
+        <p className="mt-2 text-slate-500">Apply, approve, reject, and review leave requests.</p>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
         <Card>
           <h3 className="text-lg font-semibold">{editingId ? "Edit Leave Request" : "Apply Leave"}</h3>
           <div className="mt-4 grid gap-3">
-            <Select value={form.employee} onChange={(e) => setForm((current) => ({ ...current, employee: e.target.value }))}>
-              <option value="">Select employee</option>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.full_name} ({employee.employee_id})
-                </option>
-              ))}
-            </Select>
+            {user?.role === "EMPLOYEE" ? (
+              <Input value={user.employee_profile?.full_name ?? "Your profile"} readOnly />
+            ) : (
+              <Select value={form.employee} onChange={(e) => setForm((current) => ({ ...current, employee: e.target.value }))}>
+                <option value="">Select employee</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.full_name} ({employee.employee_id})
+                  </option>
+                ))}
+              </Select>
+            )}
             <Select value={form.leave_type} onChange={(e) => setForm((current) => ({ ...current, leave_type: e.target.value }))}>
               <option value="Casual Leave">Casual Leave</option>
               <option value="Sick Leave">Sick Leave</option>
@@ -175,19 +187,19 @@ export default function LeavePage() {
               </Button>
             </div>
             {user?.employee_profile?.id ? (
-              <p className="text-xs text-slate-500">
-                Pre-filled for your employee profile: {user.employee_profile.full_name}
-              </p>
+              <p className="text-xs text-slate-500">Pre-filled for your employee profile: {user.employee_profile.full_name}</p>
             ) : null}
           </div>
         </Card>
 
-        <Card className="card-gradient">
-          <h3 className="font-semibold">AI Recommendation</h3>
-          <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
-            Every leave request is scored from attendance history and receives an approve/reject suggestion.
-          </p>
-        </Card>
+        {user?.role !== "EMPLOYEE" ? (
+          <Card className="card-gradient">
+            <h3 className="font-semibold">AI Recommendation</h3>
+            <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
+              Every leave request is scored from attendance history and receives an approve/reject suggestion.
+            </p>
+          </Card>
+        ) : null}
       </div>
 
       <Card>
@@ -212,7 +224,7 @@ export default function LeavePage() {
                 <th className="py-3 pr-4">Type</th>
                 <th className="py-3 pr-4">Dates</th>
                 <th className="py-3 pr-4">Status</th>
-                <th className="py-3 pr-4">AI Suggestion</th>
+                {user?.role !== "EMPLOYEE" ? <th className="py-3 pr-4">AI Suggestion</th> : null}
                 <th className="py-3 pr-4">Actions</th>
               </tr>
             </thead>
@@ -226,8 +238,10 @@ export default function LeavePage() {
                     <td className="py-4 pr-4">
                       {leave.start_date} to {leave.end_date}
                     </td>
-                    <td className="py-4 pr-4">{leave.status}</td>
-                    <td className="py-4 pr-4">{leave.ai_suggestion || "-"}</td>
+                    <td className="py-4 pr-4">
+                      <Badge className={statusStyles[leave.status] ?? ""}>{leave.status}</Badge>
+                    </td>
+                    {user?.role !== "EMPLOYEE" ? <td className="py-4 pr-4">{leave.ai_suggestion || "-"}</td> : null}
                     <td className="py-4 pr-4">
                       <div className="flex flex-wrap gap-2">
                         <Button type="button" variant="secondary" onClick={() => startEdit(leave)}>
