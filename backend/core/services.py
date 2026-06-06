@@ -38,8 +38,17 @@ def extract_pdf_text(file_obj):
     if PdfReader is None:
         return ""
     try:
+        try:
+            file_obj.seek(0)
+        except Exception:
+            pass
         reader = PdfReader(file_obj)
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        try:
+            file_obj.seek(0)
+        except Exception:
+            pass
+        return text
     except Exception:
         return ""
 

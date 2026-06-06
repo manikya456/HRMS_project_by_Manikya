@@ -25,6 +25,7 @@ const navItems = [
   { label: "Performance", to: "/performance", icon: BarChart3, roles: ["ADMIN", "SENIOR_MANAGER", "HR_RECRUITER"] as Role[] },
   { label: "Recruitment", to: "/recruitment", icon: Sparkles, roles: ["ADMIN", "SENIOR_MANAGER", "HR_RECRUITER"] as Role[] },
   { label: "Resume Screening", to: "/resume-screening", icon: FileScan, roles: ["ADMIN", "SENIOR_MANAGER", "HR_RECRUITER"] as Role[] },
+  { label: "Bulk Resume Screening", to: "/bulk-resume-screening", icon: FileScan, roles: ["ADMIN", "SENIOR_MANAGER", "HR_RECRUITER"] as Role[] },
   { label: "Voice Interview", to: "/voice-interview", icon: Mic2, roles: ["ADMIN", "SENIOR_MANAGER", "HR_RECRUITER"] as Role[] },
   { label: "Analytics", to: "/analytics", icon: BarChart3, roles: ["ADMIN", "SENIOR_MANAGER", "HR_RECRUITER", "EMPLOYEE"] as Role[] },
   { label: "Settings", to: "/settings", icon: Settings, roles: ["ADMIN", "SENIOR_MANAGER", "HR_RECRUITER", "EMPLOYEE", "CANDIDATE"] as Role[] },

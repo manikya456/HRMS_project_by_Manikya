@@ -120,3 +120,8 @@ SIMPLE_JWT = {
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+
+OPENAI_ENDPOINT = os.getenv("OPENAI_ENDPOINT", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_VERSION = os.getenv("OPENAI_API_VERSION", "2024-10-21")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "")

@@ -7,6 +7,9 @@ class JobOpening(models.Model):
     department = models.CharField(max_length=120)
     description = models.TextField()
     required_skills = models.TextField()
+    jd_file = models.FileField(upload_to="job_descriptions/", blank=True, null=True)
+    jd_text = models.TextField(blank=True)
+    extracted_skills = models.JSONField(default=list, blank=True)
     experience_required = models.CharField(max_length=120)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -25,11 +28,52 @@ class Candidate(models.Model):
 class ResumeEvaluation(models.Model):
     candidate = models.OneToOneField(Candidate, on_delete=models.CASCADE, related_name="evaluation")
     skill_match_percentage = models.PositiveIntegerField(default=0)
+    matched_skills = models.JSONField(default=list)
     extracted_skills = models.JSONField(default=list)
     missing_skills = models.JSONField(default=list)
     recommendation = models.CharField(max_length=120)
+    status = models.CharField(max_length=40, default="Review")
     ai_summary = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class BulkResumeUpload(models.Model):
+    job_opening = models.ForeignKey(JobOpening, on_delete=models.CASCADE, related_name="bulk_resume_uploads")
+    uploaded_file = models.FileField(upload_to="bulk_resumes/")
+    file_name = models.CharField(max_length=255)
+    extracted_text = models.TextField(blank=True)
+    extracted_skills = models.JSONField(default=list, blank=True)
+    matched_skills = models.JSONField(default=list, blank=True)
+    missing_skills = models.JSONField(default=list, blank=True)
+    match_percentage = models.PositiveIntegerField(default=0)
+    recommendation = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=40, default="Review")
+    ai_analysis = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class StoredResume(models.Model):
+    uploaded_file = models.FileField(upload_to="stored_resumes/")
+    file_name = models.CharField(max_length=255)
+    file_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    extracted_text = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ResumeMatch(models.Model):
+    job_opening = models.ForeignKey(JobOpening, on_delete=models.CASCADE, related_name="resume_matches")
+    stored_resume = models.ForeignKey(StoredResume, on_delete=models.CASCADE, related_name="matches")
+    match_percentage = models.PositiveIntegerField(default=0)
+    recommendation = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=40, default="Review")
+    analysis = models.TextField(blank=True)
+    matched_skills = models.JSONField(default=list, blank=True)
+    missing_skills = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("job_opening", "stored_resume")
 
 
 class ChatConversation(models.Model):
@@ -50,4 +94,3 @@ class InterviewSession(models.Model):
     questions = models.JSONField(default=list, blank=True)
     answers = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-

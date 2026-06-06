@@ -9,6 +9,7 @@ import PayrollPage from "@/pages/Payroll";
 import PerformancePage from "@/pages/Performance";
 import RecruitmentPage from "@/pages/Recruitment";
 import ResumeScreeningPage from "@/pages/ResumeScreening";
+import BulkResumeScreeningPage from "@/pages/BulkResumeScreening";
 import VoiceInterviewPage from "@/pages/VoiceInterview";
 import AnalyticsPage from "@/pages/Analytics";
 import SettingsPage from "@/pages/Settings";
@@ -98,6 +99,16 @@ export default function App() {
           <ProtectedRoute roles={["ADMIN", "SENIOR_MANAGER", "HR_RECRUITER"]}>
             <AppShell>
               <ResumeScreeningPage />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/bulk-resume-screening"
+        element={
+          <ProtectedRoute roles={["ADMIN", "SENIOR_MANAGER", "HR_RECRUITER"]}>
+            <AppShell>
+              <BulkResumeScreeningPage />
             </AppShell>
           </ProtectedRoute>
         }
