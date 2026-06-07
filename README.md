@@ -1,27 +1,75 @@
 # AI-HRMS
 
-AI-HRMS is a full-stack HR management system with a Django REST backend and a React + TypeScript frontend.
+AI-HRMS is a role-based Human Resource Management System designed to manage core HR operations in one platform. It combines standard HR workflows such as employee management, attendance, leave, payroll, performance, recruitment, and analytics with AI-assisted features such as resume screening, AI interview flow, and an HR support chatbot.
 
-## Included modules
+The system is built for multiple user roles including admin, HR recruiter, senior manager, and employee, where access and actions are controlled based on responsibility. The goal of the project is to provide a practical HRMS experience with both operational features and modern AI support.
+
+## Project Overview
+
+This project includes:
 
 - employee management
-- attendance
-- leave management
-- payroll
-- performance
-- recruitment
+- attendance tracking
+- leave request and approval workflows
+- payroll management
+- performance monitoring
+- recruitment workflows
 - resume screening
-- AI interview
-- analytics
+- AI interview experience
+- analytics dashboard
+- HR chatbot support
 
-## Tech stack
+## Tech Stack
 
-- backend: Django, Django REST Framework, PostgreSQL
-- frontend: React 19, TypeScript, Vite, Tailwind CSS, Recharts
-- auth: JWT
-- AI integrations: Ollama, Whisper, browser speech recognition fallback
+### Backend
 
-## Roles
+- Django
+- Django REST Framework
+- PostgreSQL
+- JWT authentication
+
+### Frontend
+
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS
+- Recharts
+
+### AI and Retrieval
+
+- OpenAI / Azure OpenAI for answer generation
+- ChromaDB for lightweight retrieval
+- local embedding fallback through Chroma
+- Whisper support for transcription
+- browser speech recognition fallback
+- Ollama support for selected local AI flows
+
+## AI Features
+
+### Resume Screening
+
+- extracts resume text
+- compares resumes against job descriptions
+- identifies relevant and missing skills
+- generates AI-assisted candidate fit evaluation
+
+### AI Interview
+
+- sequential question-by-question interview flow
+- voice-first interaction
+- browser-based speech recognition fallback
+- automated answer review and scoring
+- final interview summary and recommendation
+
+### HR Chatbot
+
+- available across the application for signed-in users
+- retrieval-backed answers using ChromaDB
+- user-aware responses based on role and HRMS data
+- OpenAI-powered final response generation
+
+## User Roles
 
 - `ADMIN`
 - `SENIOR_MANAGER`
@@ -29,149 +77,107 @@ AI-HRMS is a full-stack HR management system with a Django REST backend and a Re
 - `EMPLOYEE`
 - `CANDIDATE`
 
-## Project structure
+## Main Modules
 
-- `backend/` - Django API, models, seed command, AI services
-- `frontend/` - React dashboard UI
-- `docker-compose.yml` - optional PostgreSQL + Ollama local stack
+- Dashboard
+- Employees
+- Attendance
+- Leave Management
+- Payroll
+- Performance
+- Recruitment
+- Resume Screening
+- AI Interview
+- Analytics
+- HR Chatbot
 
-## Backend setup
+## Project Structure
 
-1. Go to the backend folder:
-
-```bash
-cd backend
+```text
+backend/   Django REST API, business logic, AI services
+frontend/  React application and UI
+docker-compose.yml  Optional local PostgreSQL and Ollama stack
 ```
 
-2. Create and activate a virtual environment if needed:
+## Getting Started
+
+### Backend
 
 ```powershell
+cd backend
 python -m venv venv
 venv\Scripts\activate
-```
-
-3. Install dependencies:
-
-```powershell
 pip install -r requirements.txt
-```
-
-4. Copy the env file:
-
-```powershell
 Copy-Item .env.example .env
-```
-
-5. Make sure PostgreSQL is running and the database matches the backend env:
-
-- database: `hrms_db`
-- user: `postgres`
-- password: `1234`
-- host: `localhost`
-- port: `5432`
-
-6. Run migrations:
-
-```powershell
 python manage.py migrate
-```
-
-7. Seed sample data:
-
-```powershell
-python manage.py seed_demo_data
-```
-
-8. Start the backend:
-
-```powershell
 python manage.py runserver
 ```
 
-Backend API base URL:
+Backend API runs at:
 
 ```text
 http://127.0.0.1:8000/api
 ```
 
-## Frontend setup
+### Frontend
 
-1. Go to the frontend folder:
-
-```bash
+```powershell
 cd frontend
-```
-
-2. Install dependencies:
-
-```powershell
 npm install
-```
-
-3. Copy the env file:
-
-```powershell
 Copy-Item .env.example .env
-```
-
-4. Start the frontend:
-
-```powershell
 npm run dev
 ```
 
-Frontend app URL:
+Frontend runs at:
 
 ```text
 http://127.0.0.1:5173
 ```
 
-## Optional Docker stack
+## Environment Configuration
 
-`docker-compose.yml` is still useful, so it is kept.
+Backend configuration is managed through `backend/.env`.
 
-Use it when you want Docker to provide:
+Common settings include:
 
-- PostgreSQL
-- Ollama
+- database connection
+- Django secret key and debug mode
+- CORS origins
+- OpenAI / Azure OpenAI configuration
+- Ollama host and model
 
-Start the optional stack:
+Frontend configuration is managed through `frontend/.env`, including the backend API base URL.
+
+## Optional Docker Services
+
+This repository includes `docker-compose.yml` for optional local infrastructure.
 
 ```bash
 docker compose up -d postgres ollama
 ```
 
-If you use this, keep your backend `.env` aligned with:
+This is useful when you want:
 
-- `POSTGRES_DB=hrms_db`
-- `POSTGRES_USER=postgres`
-- `POSTGRES_PASSWORD=1234`
-- `POSTGRES_HOST=localhost`
-- `POSTGRES_PORT=5432`
-- `OLLAMA_HOST=http://localhost:11434`
+- PostgreSQL running locally through Docker
+- Ollama available for local AI-assisted workflows
 
-## AI notes
+## API Overview
 
-- Resume screening and interview evaluation work without extra frontend setup.
-- Browser-based speech recognition is used in the AI interview flow when supported.
-- Backend audio transcription may require `ffmpeg` to be installed if recorded audio is being decoded server-side.
-- Ollama is optional. If it is not running, the app falls back gracefully in supported places.
+Representative endpoints:
 
-## Useful API routes
-
-- `POST /api/auth/register/`
 - `POST /api/auth/token/`
 - `GET /api/auth/me/`
 - `GET /api/core/employees/`
 - `GET /api/core/attendance/`
 - `GET /api/core/leave/`
 - `GET /api/core/payroll/`
+- `POST /api/core/hr-chat/`
 - `POST /api/recruitment/interviews/start/`
 - `POST /api/recruitment/interviews/{id}/transcribe/`
 - `GET /api/analytics/metrics/`
 
-## Current usage notes
+## Notes
 
-- The AI Interview UI is now voice-first and sequential.
-- Dashboard attendance and payroll charts use live backend data with UI padding when the database is sparse.
-- Sidebar label uses `AI Interview`.
+- Some AI-backed features depend on local or cloud model availability.
+- Backend audio transcription may require `ffmpeg` when decoding recorded audio server-side.
+- The retrieval flow can run with local Chroma embeddings when an OpenAI embedding deployment is not configured.
