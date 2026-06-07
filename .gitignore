@@ -1,5 +1,6 @@
 backend/.env
 frontend/.env
+.env.example
 backend/.venv/
 venv/
 .venv/
