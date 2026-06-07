@@ -6,6 +6,7 @@ from .views import (
     AttendanceViewSet,
     EmployeeDocumentViewSet,
     EmployeeViewSet,
+    HRChatAPIView,
     LeaveRequestViewSet,
     NotificationViewSet,
     PayrollViewSet,
@@ -22,4 +23,7 @@ router.register("performance", PerformanceViewSet, basename="performance")
 router.register("notifications", NotificationViewSet, basename="notifications")
 router.register("audit-logs", ActivityLogViewSet, basename="audit-logs")
 
-urlpatterns = [path("", include(router.urls))]
+urlpatterns = [
+    path("hr-chat/", HRChatAPIView.as_view(), name="hr-chat"),
+    path("", include(router.urls)),
+]

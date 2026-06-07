@@ -3,9 +3,9 @@ services:
     image: postgres:15-alpine
     container_name: ai_hrms_postgres
     environment:
-      POSTGRES_DB: ai_hrms
+      POSTGRES_DB: hrms_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: 1234
     ports:
       - "5432:5432"
     volumes:

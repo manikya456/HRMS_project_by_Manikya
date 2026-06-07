@@ -410,9 +410,15 @@ class InterviewSessionViewSet(viewsets.ModelViewSet):
     def transcribe(self, request, pk=None):
         session = self.get_object()
         audio_file = request.FILES.get("audio")
-        transcript = transcribe_audio(audio_file) if audio_file else "No audio provided."
+        if not audio_file:
+            return response.Response({"detail": "No audio was uploaded."}, status=400)
+
+        transcript = transcribe_audio(audio_file)
         if not transcript.strip():
-            return response.Response({"detail": "Unable to transcribe audio."}, status=400)
+            return response.Response(
+                {"detail": "Unable to transcribe audio. Check microphone permissions and local Whisper support, then try again."},
+                status=400,
+            )
         answer_response = self._process_answer(session, transcript)
         payload = dict(answer_response.data)
         payload["transcript"] = transcript

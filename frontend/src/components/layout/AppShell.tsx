@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { HRChatWidget } from "@/components/HRChatWidget";
 import { useAuth } from "@/context/AuthContext";
 import { Navigate } from "react-router-dom";
 
@@ -37,6 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         ) : null}
         <main className="px-4 py-6 md:px-6 lg:px-8">{children}</main>
+        <HRChatWidget />
       </div>
     </div>
   );

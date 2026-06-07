@@ -12,6 +12,8 @@ class MetricsSerializer(serializers.Serializer):
     average_attendance = serializers.DecimalField(max_digits=5, decimal_places=2)
     department_distribution = serializers.ListField()
     monthly_attendance = serializers.ListField()
+    attendance_trend = serializers.ListField()
+    payroll_trend = serializers.ListField()
     performance_trends = serializers.ListField()
     attrition_risk = serializers.DictField()
     department_health = serializers.DictField()

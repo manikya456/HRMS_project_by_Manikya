@@ -152,7 +152,7 @@ export default function LeavePage() {
         <p className="mt-2 text-slate-500">Apply, approve, reject, and review leave requests.</p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
+      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,520px)] xl:items-start">
         <Card>
           <h3 className="text-lg font-semibold">{editingId ? "Edit Leave Request" : "Apply Leave"}</h3>
           <div className="mt-4 grid gap-3">
@@ -193,11 +193,30 @@ export default function LeavePage() {
         </Card>
 
         {user?.role !== "EMPLOYEE" ? (
-          <Card className="card-gradient">
-            <h3 className="font-semibold">AI Recommendation</h3>
-            <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
-              Every leave request is scored from attendance history and receives an approve/reject suggestion.
-            </p>
+          <Card className="self-start border-slate-200 bg-white">
+            <div className="space-y-5 p-6">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.24em] text-sky-600">Decision Support</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-950">AI Recommendation</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Leave requests are checked against employee attendance history and returned with a review suggestion.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Inputs</p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">Dates, leave type, attendance</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Output</p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">Approve or reject suggestion</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Goal</p>
+                  <p className="mt-2 text-sm font-medium text-slate-900">Faster consistent triage</p>
+                </div>
+              </div>
+            </div>
           </Card>
         ) : null}
       </div>

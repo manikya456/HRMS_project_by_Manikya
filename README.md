@@ -1,20 +1,25 @@
-# AI-HRMS: Intelligent Human Resource Management Platform
+# AI-HRMS
 
-AI-HRMS is a production-style Human Resource Management System with:
+AI-HRMS is a full-stack HR management system with a Django REST backend and a React + TypeScript frontend.
 
-- Django REST backend
-- React 19 + TypeScript frontend
-- JWT authentication
-- role-based access control
-- AI resume screening
-- Ollama/Llama 3 chatbot support
-- AI voice interview workflow
-- payroll, attendance, leave, performance, and analytics modules
+## Included modules
 
-## Project Structure
+- employee management
+- attendance
+- leave management
+- payroll
+- performance
+- recruitment
+- resume screening
+- AI interview
+- analytics
 
-- `backend/` - Django REST API, PostgreSQL models, AI services, seed command
-- `frontend/` - React dashboard UI with Tailwind, Recharts, and route-based RBAC
+## Tech stack
+
+- backend: Django, Django REST Framework, PostgreSQL
+- frontend: React 19, TypeScript, Vite, Tailwind CSS, Recharts
+- auth: JWT
+- AI integrations: Ollama, Whisper, browser speech recognition fallback
 
 ## Roles
 
@@ -24,80 +29,149 @@ AI-HRMS is a production-style Human Resource Management System with:
 - `EMPLOYEE`
 - `CANDIDATE`
 
-## Backend Setup
+## Project structure
 
-1. Create a PostgreSQL database named `ai_hrms`.
-2. Copy `backend/.env.example` to `backend/.env` and update values if needed.
-3. Install dependencies:
+- `backend/` - Django API, models, seed command, AI services
+- `frontend/` - React dashboard UI
+- `docker-compose.yml` - optional PostgreSQL + Ollama local stack
+
+## Backend setup
+
+1. Go to the backend folder:
 
 ```bash
 cd backend
+```
+
+2. Create and activate a virtual environment if needed:
+
+```powershell
+python -m venv venv
+venv\Scripts\activate
+```
+
+3. Install dependencies:
+
+```powershell
 pip install -r requirements.txt
 ```
 
-4. Run migrations:
+4. Copy the env file:
 
-```bash
+```powershell
+Copy-Item .env.example .env
+```
+
+5. Make sure PostgreSQL is running and the database matches the backend env:
+
+- database: `hrms_db`
+- user: `postgres`
+- password: `1234`
+- host: `localhost`
+- port: `5432`
+
+6. Run migrations:
+
+```powershell
 python manage.py migrate
 ```
 
-5. Seed demo data:
+7. Seed sample data:
 
-```bash
+```powershell
 python manage.py seed_demo_data
 ```
 
-6. Start the backend:
+8. Start the backend:
 
-```bash
+```powershell
 python manage.py runserver
 ```
 
-## Frontend Setup
+Backend API base URL:
 
-1. Install dependencies:
+```text
+http://127.0.0.1:8000/api
+```
+
+## Frontend setup
+
+1. Go to the frontend folder:
 
 ```bash
 cd frontend
+```
+
+2. Install dependencies:
+
+```powershell
 npm install
 ```
 
-2. Copy `frontend/.env.example` to `frontend/.env`.
-3. Start the UI:
+3. Copy the env file:
 
-```bash
+```powershell
+Copy-Item .env.example .env
+```
+
+4. Start the frontend:
+
+```powershell
 npm run dev
 ```
 
-## Optional Local Stack
+Frontend app URL:
 
-If you want PostgreSQL and Ollama managed for you:
+```text
+http://127.0.0.1:5173
+```
+
+## Optional Docker stack
+
+`docker-compose.yml` is still useful, so it is kept.
+
+Use it when you want Docker to provide:
+
+- PostgreSQL
+- Ollama
+
+Start the optional stack:
 
 ```bash
 docker compose up -d postgres ollama
 ```
 
-## API Highlights
+If you use this, keep your backend `.env` aligned with:
+
+- `POSTGRES_DB=hrms_db`
+- `POSTGRES_USER=postgres`
+- `POSTGRES_PASSWORD=1234`
+- `POSTGRES_HOST=localhost`
+- `POSTGRES_PORT=5432`
+- `OLLAMA_HOST=http://localhost:11434`
+
+## AI notes
+
+- Resume screening and interview evaluation work without extra frontend setup.
+- Browser-based speech recognition is used in the AI interview flow when supported.
+- Backend audio transcription may require `ffmpeg` to be installed if recorded audio is being decoded server-side.
+- Ollama is optional. If it is not running, the app falls back gracefully in supported places.
+
+## Useful API routes
 
 - `POST /api/auth/register/`
 - `POST /api/auth/token/`
 - `GET /api/auth/me/`
 - `GET /api/core/employees/`
-- `POST /api/core/attendance/check_in/`
-- `POST /api/core/leave/{id}/approve/`
-- `POST /api/recruitment/evaluations/evaluate/`
-- `POST /api/recruitment/chat/ask/`
+- `GET /api/core/attendance/`
+- `GET /api/core/leave/`
+- `GET /api/core/payroll/`
 - `POST /api/recruitment/interviews/start/`
+- `POST /api/recruitment/interviews/{id}/transcribe/`
 - `GET /api/analytics/metrics/`
 
-## AI Features
+## Current usage notes
 
-- Resume PDF text extraction and skill matching
-- Recruiter chatbot scaffold using Ollama Llama 3
-- AI voice interview session structure
-- AI feedback generation for leave, performance, and company insights
-
-## Notes
-
-- Some frontend pages are currently polished shells wired for the API and can be expanded with live forms and tables.
-- The backend AI paths gracefully fall back when Ollama, Whisper, or spaCy are unavailable locally.
+- The AI Interview UI is now voice-first and sequential.
+- Dashboard attendance and payroll charts use live backend data with UI padding when the database is sparse.
+- Sidebar label uses `AI Interview`.

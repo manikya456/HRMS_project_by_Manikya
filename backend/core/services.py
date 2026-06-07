@@ -135,8 +135,8 @@ def build_performance_feedback(employee):
 
 
 def transcribe_audio(audio_file):
-    if whisper is None:
-        return "Transcription unavailable locally."
+    if whisper is None or audio_file is None:
+        return ""
     try:
         suffix = Path(getattr(audio_file, "name", "")).suffix or ".wav"
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
@@ -147,7 +147,7 @@ def transcribe_audio(audio_file):
         result = model.transcribe(temp_path)
         return result.get("text", "").strip()
     except Exception:
-        return "Transcription failed. Please retry."
+        return ""
     finally:
         try:
             if "temp_path" in locals() and os.path.exists(temp_path):

@@ -1,9 +1,11 @@
 from django.utils import timezone
 from rest_framework import decorators, permissions, response, status, viewsets
+from rest_framework.views import APIView
 from rest_framework.filters import SearchFilter
 
 from accounts.permissions import CanManageEmployees, CanViewEmployeeManagement, IsAdminOrHR, IsAdminOnly
 from .models import ActivityLog, Attendance, Employee, EmployeeDocument, LeaveRequest, Notification, Payroll, Performance
+from .hr_chat import answer_hr_question
 from .serializers import (
     ActivityLogSerializer,
     AttendanceSerializer,
@@ -15,6 +17,18 @@ from .serializers import (
     PerformanceSerializer,
 )
 from .services import calculate_working_hours
+
+
+class HRChatAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        payload = answer_hr_question(
+            request.user,
+            request.data.get("message", ""),
+            history=request.data.get("history", []),
+        )
+        return response.Response(payload)
 
 
 class EmployeeViewSet(viewsets.ModelViewSet):
