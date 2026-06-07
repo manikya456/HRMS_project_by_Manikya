@@ -59,6 +59,7 @@ export default function BulkResumeScreeningPage() {
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [loadingResumes, setLoadingResumes] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -127,6 +128,7 @@ export default function BulkResumeScreeningPage() {
       await api.post("/recruitment/stored-resumes/upload/", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+      await api.post("/recruitment/resume-matches/rebuild/");
       if (selectedJobId) {
         await loadMatches(selectedJobId);
       }
@@ -141,6 +143,26 @@ export default function BulkResumeScreeningPage() {
     }
   };
 
+  const clearStoredResumes = async () => {
+    const confirmed = window.confirm("Delete all uploaded resumes and their saved match data? This cannot be undone.");
+    if (!confirmed) return;
+
+    setClearing(true);
+    setMessage("Clearing stored resumes...");
+    try {
+      await api.post("/recruitment/stored-resumes/clear/");
+      setStoredResumes([]);
+      setMessage("Stored resumes cleared. You can upload fresh resumes now.");
+      if (selectedJobId) {
+        await loadMatches(selectedJobId);
+      }
+    } catch {
+      setMessage("Unable to clear stored resumes right now.");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const selectedJdFileName = selectedJob?.jd_file ? selectedJob.jd_file.split("/").pop() ?? selectedJob.jd_file : "JD file";
 
   return (
@@ -150,9 +172,14 @@ export default function BulkResumeScreeningPage() {
           <h2 className="text-3xl font-semibold">Bulk Resume Screening</h2>
           <p className="mt-2 text-slate-500">Select a JD on the left and the right side will score every stored resume against it.</p>
         </div>
-        <Button onClick={() => inputRef.current?.click()} disabled={uploading}>
-          {uploading ? "Uploading..." : "Add Resumes"}
-        </Button>
+        <div className="flex gap-3">
+          <Button variant="secondary" onClick={clearStoredResumes} disabled={clearing || uploading}>
+            {clearing ? "Clearing..." : "Clear All"}
+          </Button>
+          <Button onClick={() => inputRef.current?.click()} disabled={uploading || clearing}>
+            {uploading ? "Uploading..." : "Add Resumes"}
+          </Button>
+        </div>
       </div>
 
       <input

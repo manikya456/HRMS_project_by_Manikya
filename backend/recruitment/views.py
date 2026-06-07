@@ -16,7 +16,15 @@ from .serializers import (
     ResumeMatchSerializer,
     StoredResumeSerializer,
 )
-from .services import chatbot_response, evaluate_candidate_resume, evaluate_resume_against_job, interview_questions
+from .services import (
+    chatbot_response,
+    evaluate_candidate_resume,
+    evaluate_interview_answer,
+    evaluate_resume_against_job,
+    generate_role_questions,
+    interview_questions,
+    summarize_interview,
+)
 
 
 def _file_hash(file_obj):
@@ -72,6 +80,14 @@ def _sync_matches_for_resume(resume):
         _sync_match(job_opening, resume)
 
 
+def _sync_matches_for_all_jobs_and_resumes():
+    jobs = JobOpening.objects.all().order_by("-created_at")
+    resumes = StoredResume.objects.all().order_by("-created_at")
+    for job_opening in jobs:
+        for resume in resumes:
+            _sync_match(job_opening, resume)
+
+
 def _ensure_matches_for_job(job_opening):
     for resume in StoredResume.objects.all().order_by("-created_at"):
         _ensure_match(job_opening, resume)
@@ -96,8 +112,11 @@ class CandidateViewSet(viewsets.ModelViewSet):
     serializer_class = CandidateSerializer
 
     def create(self, request, *args, **kwargs):
-        response_obj = super().create(request, *args, **kwargs)
-        candidate = Candidate.objects.select_related("applied_position").get(pk=response_obj.data["id"])
+        email = request.data.get("email")
+        instance = Candidate.objects.filter(email=email).first() if email else None
+        serializer = self.get_serializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        candidate = serializer.save()
         score, extracted, matched, missing, recommendation, summary, status_label = evaluate_candidate_resume(candidate)
         evaluation, _ = ResumeEvaluation.objects.update_or_create(
             candidate=candidate,
@@ -111,9 +130,10 @@ class CandidateViewSet(viewsets.ModelViewSet):
                 "ai_summary": summary,
             },
         )
-        response_obj.data = CandidateSerializer(candidate).data
-        response_obj.data["evaluation"] = ResumeEvaluationSerializer(evaluation).data
-        return response_obj
+        headers = self.get_success_headers(serializer.data)
+        payload = CandidateSerializer(candidate).data
+        payload["evaluation"] = ResumeEvaluationSerializer(evaluation).data
+        return response.Response(payload, status=201, headers=headers)
 
 
 class ResumeEvaluationViewSet(viewsets.ModelViewSet):
@@ -211,6 +231,7 @@ class StoredResumeViewSet(viewsets.ModelViewSet):
             digest = _file_hash(uploaded_file)
             existing = StoredResume.objects.filter(file_hash=digest).first()
             if existing:
+                _sync_matches_for_resume(existing)
                 created.append(existing)
                 continue
             resume_text = extract_pdf_text(uploaded_file)
@@ -223,7 +244,20 @@ class StoredResumeViewSet(viewsets.ModelViewSet):
             _sync_matches_for_resume(record)
             created.append(record)
 
+        _sync_matches_for_all_jobs_and_resumes()
+
         return response.Response(self.get_serializer(created, many=True).data, status=201)
+
+    @decorators.action(detail=False, methods=["post"])
+    def clear(self, request):
+        removed_count = 0
+        for resume in StoredResume.objects.all():
+            if resume.uploaded_file:
+                resume.uploaded_file.delete(save=False)
+            resume.delete()
+            removed_count += 1
+
+        return response.Response({"detail": "Stored resumes cleared.", "removed_count": removed_count})
 
 
 class ResumeMatchViewSet(viewsets.ReadOnlyModelViewSet):
@@ -239,6 +273,17 @@ class ResumeMatchViewSet(viewsets.ReadOnlyModelViewSet):
             _ensure_matches_for_job(job)
             queryset = queryset.filter(job_opening_id=job_opening)
         return queryset
+
+    @decorators.action(detail=False, methods=["post"])
+    def rebuild(self, request):
+        _sync_matches_for_all_jobs_and_resumes()
+        return response.Response(
+            {
+                "detail": "Resume matches rebuilt.",
+                "job_count": JobOpening.objects.count(),
+                "resume_count": StoredResume.objects.count(),
+            }
+        )
 
 
 class ChatConversationViewSet(viewsets.ModelViewSet):
@@ -270,26 +315,87 @@ class InterviewSessionViewSet(viewsets.ModelViewSet):
     queryset = InterviewSession.objects.select_related("candidate").all().order_by("-created_at")
     serializer_class = InterviewSessionSerializer
 
+    def _process_answer(self, session, answer):
+        answer = str(answer or "").strip()
+        if not answer:
+            return response.Response({"detail": "Answer is required."}, status=400)
+
+        question_index = min(session.current_question_index, max(len(session.questions or []) - 1, 0))
+        question = (session.questions or [""])[question_index]
+        score, feedback, strengths, gaps, recommendation = evaluate_interview_answer(
+            session.role or "general",
+            question,
+            answer,
+            session.transcript or "",
+        )
+
+        session.answers = (session.answers or []) + [answer]
+        session.answer_reviews = (session.answer_reviews or []) + [
+            {
+                "question": question,
+                "answer": answer,
+                "score": score,
+                "feedback": feedback,
+                "strengths": strengths,
+                "gaps": gaps,
+                "recommendation": recommendation,
+            }
+        ]
+        session.transcript = (session.transcript or "") + f"\nQ: {question}\nA: {answer}"
+        session.score = int(round(sum(item["score"] for item in session.answer_reviews) / max(len(session.answer_reviews), 1)))
+        session.communication_score = min(100, int(round(session.score * 0.9)))
+        session.technical_score = min(100, int(round(session.score)))
+        session.confidence_score = min(100, int(round(session.score * 0.85)))
+        session.current_question_index = len(session.answers or [])
+
+        is_complete = session.current_question_index >= len(session.questions or [])
+        if is_complete:
+            final_review, final_recommendation = summarize_interview(
+                session.role or "general",
+                session.questions or [],
+                session.answer_reviews or [],
+                session.score,
+            )
+            session.final_review = final_review
+            session.final_recommendation = final_recommendation
+            session.recommendation = final_recommendation
+        else:
+            session.recommendation = recommendation
+        session.save()
+
+        next_question = None
+        if not is_complete:
+            next_question = session.questions[session.current_question_index]
+
+        return response.Response(
+            {
+                "session": self.get_serializer(session).data,
+                "current_review": session.answer_reviews[-1],
+                "next_question": next_question,
+                "is_complete": is_complete,
+            }
+        )
+
     @decorators.action(detail=False, methods=["post"])
     def start(self, request):
-        candidate = Candidate.objects.get(pk=request.data["candidate_id"])
-        questions = interview_questions(candidate)
-        session = InterviewSession.objects.create(candidate=candidate, questions=questions)
+        role = str(request.data.get("role", "")).strip()
+        candidate_id = request.data.get("candidate_id")
+        candidate = Candidate.objects.filter(pk=candidate_id).first() if candidate_id else None
+        questions = generate_role_questions(role)
+        session = InterviewSession.objects.create(
+            candidate=candidate,
+            role=role,
+            questions=questions,
+            current_question_index=0,
+            answers=[],
+            answer_reviews=[],
+        )
         return response.Response(self.get_serializer(session).data)
 
     @decorators.action(detail=True, methods=["post"])
     def submit_answer(self, request, pk=None):
         session = self.get_object()
-        answer = request.data.get("answer", "")
-        session.answers = (session.answers or []) + [answer]
-        session.transcript = (session.transcript or "") + f"\nA: {answer}"
-        session.score = min(100, session.score + 10)
-        session.communication_score = min(100, session.communication_score + 10)
-        session.technical_score = min(100, session.technical_score + 8)
-        session.confidence_score = min(100, session.confidence_score + 7)
-        session.recommendation = "Proceed to next round" if session.score >= 60 else "Needs more evaluation"
-        session.save()
-        return response.Response(self.get_serializer(session).data)
+        return self._process_answer(session, request.data.get("answer", ""))
 
     @decorators.action(detail=True, methods=["get"])
     def next_question(self, request, pk=None):
@@ -298,16 +404,16 @@ class InterviewSessionViewSet(viewsets.ModelViewSet):
         questions = session.questions or []
         if asked < len(questions):
             return response.Response({"question": questions[asked]})
-        return response.Response({"question": "Thank you. This concludes the interview."})
+        return response.Response({"question": "Thank you. This concludes the interview.", "final_review": session.final_review, "final_recommendation": session.final_recommendation})
 
     @decorators.action(detail=True, methods=["post"])
     def transcribe(self, request, pk=None):
         session = self.get_object()
         audio_file = request.FILES.get("audio")
         transcript = transcribe_audio(audio_file) if audio_file else "No audio provided."
-        session.transcript = (session.transcript or "") + f"\n{transcript}"
-        session.answers = (session.answers or []) + [transcript]
-        session.score = min(100, session.score + 12)
-        session.communication_score = min(100, session.communication_score + 12)
-        session.save(update_fields=["transcript", "answers", "score", "communication_score"])
-        return response.Response({"transcript": transcript, "session": self.get_serializer(session).data})
+        if not transcript.strip():
+            return response.Response({"detail": "Unable to transcribe audio."}, status=400)
+        answer_response = self._process_answer(session, transcript)
+        payload = dict(answer_response.data)
+        payload["transcript"] = transcript
+        return response.Response(payload)

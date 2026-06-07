@@ -206,3 +206,121 @@ def interview_questions(candidate):
     if position and position.required_skills:
         base.insert(1, f"How have you used {position.required_skills.split(',')[0]} in production?")
     return base
+
+
+def generate_role_questions(role):
+    role_name = (role or "general").strip()
+    prompt = f"""
+Create exactly 3 concise interview questions for the role below.
+Return only valid JSON with this schema:
+{{"questions": ["question 1", "question 2", "question 3"]}}
+
+Role: {role_name}
+"""
+    ai_response = _azure_openai_chat(prompt)
+    parsed = _parse_json_response(ai_response) if ai_response else None
+    if parsed and isinstance(parsed, dict):
+        questions = parsed.get("questions", [])
+        if isinstance(questions, list):
+            normalized = _normalize_skill_list(questions)
+            if len(normalized) >= 3:
+                return normalized[:3]
+
+    fallback = {
+        "python developer": [
+            "Tell me about a Python project you delivered end to end.",
+            "How do you structure maintainable backend code in Python?",
+            "How do you debug performance issues in a Python service?",
+        ],
+        "backend developer": [
+            "Describe a backend system you built and the trade-offs involved.",
+            "How do you design reliable APIs for production use?",
+            "How do you handle database performance and scaling issues?",
+        ],
+        "full stack developer": [
+            "Tell me about a full stack feature you shipped recently.",
+            "How do you keep frontend and backend contracts aligned?",
+            "How do you balance speed of delivery with code quality?",
+        ],
+    }
+    key = role_name.lower()
+    for match_key, questions in fallback.items():
+        if match_key in key:
+            return questions
+    return [
+        f"What interests you most about the {role_name} role?",
+        f"Describe a project that makes you a strong fit for the {role_name} role.",
+        f"How do you handle pressure and changing requirements in a {role_name} job?",
+    ]
+
+
+def evaluate_interview_answer(role, question, transcript, prior_context=""):
+    prompt = f"""
+You are evaluating one interview answer for the role below.
+Return only valid JSON with this schema:
+{{"score": 0-100, "feedback": "short feedback", "strengths": ["..."], "gaps": ["..."], "recommendation": "short recommendation"}}
+
+Role: {role}
+Question: {question}
+Prior context: {prior_context}
+Answer transcript: {transcript}
+"""
+    ai_response = _azure_openai_chat(prompt)
+    parsed = _parse_json_response(ai_response) if ai_response else None
+    if parsed and isinstance(parsed, dict):
+        try:
+            score = max(0, min(100, int(parsed.get("score", 0))))
+            feedback = str(parsed.get("feedback", "")).strip()
+            strengths = _normalize_skill_list(parsed.get("strengths", []))
+            gaps = _normalize_skill_list(parsed.get("gaps", []))
+            recommendation = str(parsed.get("recommendation", "")).strip() or (
+                "Strong candidate" if score >= 80 else "Consider next round" if score >= 55 else "Needs improvement"
+            )
+            return score, feedback, strengths, gaps, recommendation
+        except Exception:
+            pass
+
+    answer_text = (transcript or "").strip()
+    word_count = len(answer_text.split())
+    score = 85 if word_count > 80 else 65 if word_count > 35 else 40 if word_count > 10 else 20
+    feedback = (
+        "Clear and detailed answer with good role awareness."
+        if score >= 80
+        else "Answer is acceptable, but could be more specific and structured."
+        if score >= 55
+        else "Answer is brief and needs more concrete examples."
+    )
+    strengths = ["Communication"] if score >= 55 else []
+    gaps = ["Depth", "Specific examples"] if score < 80 else []
+    recommendation = "Strong candidate" if score >= 80 else "Consider next round" if score >= 55 else "Needs improvement"
+    return score, feedback, strengths, gaps, recommendation
+
+
+def summarize_interview(role, questions, reviews, overall_score):
+    prompt = f"""
+Summarize the interview outcome for the role below.
+Return only valid JSON with this schema:
+{{"final_review": "paragraph", "final_recommendation": "short recommendation"}}
+
+Role: {role}
+Questions: {questions}
+Reviews: {reviews}
+Overall score: {overall_score}
+"""
+    ai_response = _azure_openai_chat(prompt)
+    parsed = _parse_json_response(ai_response) if ai_response else None
+    if parsed and isinstance(parsed, dict):
+        final_review = str(parsed.get("final_review", "")).strip()
+        final_recommendation = str(parsed.get("final_recommendation", "")).strip()
+        if final_review and final_recommendation:
+            return final_review, final_recommendation
+
+    final_recommendation = "Proceed to next round" if overall_score >= 70 else "Hold for review" if overall_score >= 50 else "Not recommended"
+    final_review = (
+        f"The candidate showed strong promise for the {role} role."
+        if overall_score >= 70
+        else f"The candidate is suitable for further review in the {role} role."
+        if overall_score >= 50
+        else f"The candidate needs more preparation for the {role} role."
+    )
+    return final_review, final_recommendation

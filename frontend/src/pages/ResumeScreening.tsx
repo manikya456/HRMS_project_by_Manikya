@@ -109,8 +109,15 @@ export default function ResumeScreeningPage() {
       });
       setResult(candidate.data.evaluation ?? null);
       setStatus("Screening completed successfully.");
-    } catch {
-      setStatus("Unable to screen this resume right now.");
+    } catch (error: any) {
+      const backendMessage =
+        error?.response?.data?.detail ||
+        (typeof error?.response?.data === "string" ? error.response.data : "") ||
+        error?.response?.data?.email?.[0] ||
+        error?.response?.data?.resume?.[0] ||
+        error?.response?.data?.applied_position?.[0] ||
+        "Unable to screen this resume right now.";
+      setStatus(backendMessage);
     } finally {
       setLoading(false);
     }

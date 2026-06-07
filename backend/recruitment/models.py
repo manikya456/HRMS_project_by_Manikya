@@ -84,13 +84,18 @@ class ChatConversation(models.Model):
 
 
 class InterviewSession(models.Model):
-    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name="interview_sessions")
+    candidate = models.ForeignKey(Candidate, on_delete=models.SET_NULL, null=True, blank=True, related_name="interview_sessions")
+    role = models.CharField(max_length=120, blank=True)
+    current_question_index = models.PositiveIntegerField(default=0)
     score = models.PositiveIntegerField(default=0)
     transcript = models.TextField(blank=True)
     recommendation = models.CharField(max_length=120, blank=True)
+    final_review = models.TextField(blank=True)
+    final_recommendation = models.CharField(max_length=120, blank=True)
     communication_score = models.PositiveIntegerField(default=0)
     technical_score = models.PositiveIntegerField(default=0)
     confidence_score = models.PositiveIntegerField(default=0)
     questions = models.JSONField(default=list, blank=True)
     answers = models.JSONField(default=list, blank=True)
+    answer_reviews = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

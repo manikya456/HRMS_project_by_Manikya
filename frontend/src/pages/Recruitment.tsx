@@ -59,6 +59,7 @@ export default function RecruitmentPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<JobForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
 
@@ -105,6 +106,28 @@ export default function RecruitmentPage() {
       setStatus("");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deleteJob = async (job: Job) => {
+    const confirmed = window.confirm(`Delete the JD for ${job.title}? This will remove its recruitment data.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingId(job.id);
+    setError("");
+    setStatus("Deleting job opening...");
+
+    try {
+      await api.delete(`/recruitment/jobs/${job.id}/`);
+      await loadJobs();
+      setStatus("Job opening deleted.");
+    } catch {
+      setError("Failed to delete the job opening.");
+      setStatus("");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -213,9 +236,20 @@ export default function RecruitmentPage() {
                   {job.department} · {job.experience_required}
                 </p>
               </div>
-              <Badge className={job.is_active ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}>
-                {job.is_active ? "Active" : "Inactive"}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge className={job.is_active ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}>
+                  {job.is_active ? "Active" : "Inactive"}
+                </Badge>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-500/10"
+                  onClick={() => deleteJob(job)}
+                  disabled={deletingId === job.id}
+                >
+                  {deletingId === job.id ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2">
