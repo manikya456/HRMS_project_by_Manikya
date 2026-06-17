@@ -38,9 +38,15 @@ class MetricsView(views.APIView):
         monthly_attendance = list(
             Attendance.objects.values("date").annotate(value=Count("id")).order_by("date")[:12]
         )
+        attendance_days = []
+        day = today
+        while len(attendance_days) < 6:
+            if day.weekday() != 6:
+                attendance_days.append(day)
+            day -= timedelta(days=1)
+
         attendance_trend = []
-        for day_offset in range(6, -1, -1):
-            day = today - timedelta(days=day_offset)
+        for day in reversed(attendance_days):
             day_records = Attendance.objects.filter(date=day)
             total_records = day_records.count()
             present_count = day_records.filter(status="PRESENT").count()

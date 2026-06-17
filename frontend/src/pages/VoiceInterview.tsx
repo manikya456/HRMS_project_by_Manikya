@@ -290,11 +290,12 @@ export default function VoiceInterviewPage() {
       return;
     }
     setLoading(true);
-    setStatus("Generating 3 interview questions...");
+    setStatus("Generating fresh JD-aware interview questions...");
     setTranscript("");
     setCurrentReview(null);
     try {
-      const { data } = await api.post("/recruitment/interviews/start/", { role });
+      const payload = selectedJob ? { role, job_opening_id: selectedJob.id } : { role };
+      const { data } = await api.post("/recruitment/interviews/start/", payload);
       setSession(data);
       setStatus("Interview ready. The first question has been asked.");
     } catch (error: any) {

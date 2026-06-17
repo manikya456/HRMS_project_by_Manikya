@@ -22,7 +22,6 @@ from .services import (
     evaluate_interview_answer,
     evaluate_resume_against_job,
     generate_role_questions,
-    interview_questions,
     summarize_interview,
 )
 
@@ -380,11 +379,17 @@ class InterviewSessionViewSet(viewsets.ModelViewSet):
     def start(self, request):
         role = str(request.data.get("role", "")).strip()
         candidate_id = request.data.get("candidate_id")
+        job_opening_id = request.data.get("job_opening_id") or request.data.get("job_id")
         candidate = Candidate.objects.filter(pk=candidate_id).first() if candidate_id else None
-        questions = generate_role_questions(role)
+        job_opening = JobOpening.objects.filter(pk=job_opening_id).first() if job_opening_id else None
+        if not job_opening and candidate:
+            job_opening = candidate.applied_position
+
+        interview_role = role or getattr(job_opening, "title", "") or "General"
+        questions = generate_role_questions(interview_role, job_opening=job_opening, candidate=candidate)
         session = InterviewSession.objects.create(
             candidate=candidate,
-            role=role,
+            role=interview_role,
             questions=questions,
             current_question_index=0,
             answers=[],

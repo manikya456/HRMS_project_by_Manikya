@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { MetricCard } from "@/components/MetricCard";
 import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, LineChart, Line } from "recharts";
 import api from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 function buildAttendanceFallback() {
   return [
@@ -12,7 +13,6 @@ function buildAttendanceFallback() {
     { name: "Thu", value: 95, present: 48, total: 50, date: "Sample Thursday" },
     { name: "Fri", value: 91, present: 46, total: 50, date: "Sample Friday" },
     { name: "Sat", value: 84, present: 42, total: 50, date: "Sample Saturday" },
-    { name: "Sun", value: 0, present: 0, total: 0, date: "Sample Sunday" },
   ];
 }
 
@@ -29,9 +29,10 @@ function buildPayrollFallback() {
 
 function mergeAttendanceData(source: any[] = []) {
   const fallback = buildAttendanceFallback();
-  if (!source.length) return fallback;
+  const workingDaySource = source.filter((item) => item?.name !== "Sun");
+  if (!workingDaySource.length) return fallback;
   return fallback.map((placeholder, index) => {
-    const item = source[index] ?? {};
+    const item = workingDaySource[index] ?? {};
     const liveTotal = Number(item?.total ?? 0);
     const liveValue = Number(item?.value ?? 0);
     const shouldUseFallback = !liveTotal || liveValue <= 0;
@@ -64,6 +65,7 @@ function mergePayrollData(source: any[] = []) {
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     api
@@ -74,21 +76,24 @@ export default function DashboardPage() {
 
   const attendanceData = mergeAttendanceData(metrics?.attendance_trend ?? []);
   const payrollData = mergePayrollData(metrics?.payroll_trend ?? []);
+  const showInterviewMetrics = user?.role !== "EMPLOYEE";
 
   return (
     <div className="space-y-6 animate-fadeUp">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className={`grid gap-4 md:grid-cols-2 ${showInterviewMetrics ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
         <MetricCard label="Total Employees" value={metrics?.total_employees ?? "248"} delta="+12%" />
         <MetricCard label="Open Positions" value={metrics?.open_positions ?? "18"} delta="+3" />
         <MetricCard label="Candidates" value={metrics?.candidates ?? "124"} delta="+18%" />
-        <MetricCard label="Interview Sessions" value={metrics?.interviews ?? "36"} delta="+7%" />
+        {showInterviewMetrics ? (
+          <MetricCard label="Interview Sessions" value={metrics?.interviews ?? "36"} delta="+7%" />
+        ) : null}
       </div>
       <div className="grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold">Attendance Trend</h3>
-              <p className="text-sm text-slate-500">Last 7 days of attendance, padded for display when records are still sparse.</p>
+              <p className="text-sm text-slate-500">Recent working-day attendance trend, with Sundays excluded.</p>
             </div>
           </div>
           <div className="mt-5 h-72">
@@ -134,20 +139,6 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
         </Card>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        {[
-          "Notification Center",
-          "Activity Timeline",
-          "Recent Events",
-        ].map((title) => (
-          <Card key={title}>
-            <h3 className="text-lg font-semibold">{title}</h3>
-            <p className="mt-2 text-sm text-slate-500">
-              Live events, approvals, and audit items will appear here once connected to the backend.
-            </p>
-          </Card>
-        ))}
       </div>
     </div>
   );

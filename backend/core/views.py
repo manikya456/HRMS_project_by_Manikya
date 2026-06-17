@@ -60,10 +60,53 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     filterset_fields = ["employee", "date", "status"]
     permission_classes = [IsAdminOrHR]
 
+    def _current_employee(self, request):
+        return getattr(request.user, "employee_profile", None)
+
+    @decorators.action(detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated])
+    def today(self, request):
+        employee = self._current_employee(request)
+        if employee is None:
+            return response.Response(
+                {"detail": "No employee profile is linked to this user."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        attendance = Attendance.objects.filter(employee=employee, date=timezone.localdate()).first()
+        if attendance:
+            return response.Response(self.get_serializer(attendance).data)
+
+        return response.Response(
+            {
+                "id": None,
+                "employee": employee.id,
+                "date": timezone.localdate(),
+                "check_in": None,
+                "check_out": None,
+                "working_hours": "0.00",
+                "status": "ABSENT",
+            }
+        )
+
     @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def check_in(self, request):
-        employee = request.user.employee_profile
+        employee = self._current_employee(request)
+        if employee is None:
+            return response.Response(
+                {"detail": "No employee profile is linked to this user."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         attendance, _ = Attendance.objects.get_or_create(employee=employee, date=timezone.localdate())
+        if attendance.check_out:
+            return response.Response(
+                {"detail": "You already completed attendance for today."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if attendance.check_in:
+            return response.Response(
+                {"detail": "You are already checked in for today."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         attendance.check_in = timezone.now()
         attendance.status = "PRESENT"
         attendance.save()
@@ -71,8 +114,23 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def check_out(self, request):
-        employee = request.user.employee_profile
-        attendance, _ = Attendance.objects.get_or_create(employee=employee, date=timezone.localdate())
+        employee = self._current_employee(request)
+        if employee is None:
+            return response.Response(
+                {"detail": "No employee profile is linked to this user."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        attendance = Attendance.objects.filter(employee=employee, date=timezone.localdate()).first()
+        if attendance is None or not attendance.check_in:
+            return response.Response(
+                {"detail": "Please check in before checking out."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if attendance.check_out:
+            return response.Response(
+                {"detail": "You are already checked out for today."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         attendance.check_out = timezone.now()
         attendance.working_hours = calculate_working_hours(attendance.check_in, attendance.check_out)
         attendance.save()

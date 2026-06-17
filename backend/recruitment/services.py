@@ -1,5 +1,7 @@
 import json
+import random
 import re
+import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -32,6 +34,23 @@ def _normalize_skill_list(values):
         seen.add(key)
         normalized.append(skill)
     return normalized
+
+
+def _normalize_question_list(values, limit):
+    questions = []
+    seen = set()
+    for value in values or []:
+        question = re.sub(r"^\s*(?:[-*]|\d+[.)])\s*", "", str(value)).strip()
+        if not question or len(question) < 12:
+            continue
+        key = question.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        questions.append(question)
+        if len(questions) >= limit:
+            break
+    return questions
 
 
 def _split_manual_skills(text):
@@ -196,62 +215,120 @@ def chatbot_response(message, context):
     )
 
 
+def _job_skill_list(position):
+    if not position:
+        return []
+
+    skills = []
+    extracted_skills = getattr(position, "extracted_skills", []) or []
+    if isinstance(extracted_skills, list):
+        skills.extend(extracted_skills)
+    skills.extend(_split_manual_skills(getattr(position, "required_skills", "")))
+    return _normalize_skill_list(skills)
+
+
+def _fallback_interview_questions(role_name, department, skills, count, seed):
+    readable_role = role_name or "this role"
+    readable_department = department or "the hiring team"
+    skill_focus = skills[:4] or ["the core tools required for this role"]
+    rng = random.Random(seed)
+
+    openings = [
+        f"Tell me about a recent project that best shows you are ready for the {readable_role} role.",
+        f"What makes your background a strong fit for the {readable_role} opening in {readable_department}?",
+        f"Walk me through the experience that most closely matches this {readable_role} position.",
+    ]
+    question_pool = [
+        f"How would you approach your first 30 days in the {readable_role} role?",
+        f"Describe a difficult production or delivery problem you solved and how you measured success.",
+        f"How do you handle unclear requirements when multiple stakeholders expect quick delivery?",
+        f"Tell me about a time you received critical feedback and changed your work because of it.",
+        f"How would you explain a complex technical decision to a non-technical manager?",
+        f"What quality checks do you use before handing work to another team or releasing it?",
+    ]
+
+    for skill in skill_focus:
+        question_pool.extend(
+            [
+                f"Describe a practical project where you used {skill}. What decisions did you make and why?",
+                f"If a {skill}-based feature started failing in production, how would you investigate it?",
+            ]
+        )
+
+    first_question = rng.choice(openings)
+    rng.shuffle(question_pool)
+    return _normalize_question_list([first_question, *question_pool], count)
+
+
 def interview_questions(candidate):
     position = candidate.applied_position
-    base = [
-        "Tell me about yourself and the most relevant project you've shipped.",
-        "Explain a technical challenge you solved and the trade-offs you made.",
-        "How do you collaborate across teams when requirements change?",
-    ]
-    if position and position.required_skills:
-        base.insert(1, f"How have you used {position.required_skills.split(',')[0]} in production?")
-    return base
+    role_name = getattr(position, "title", "") or "general"
+    return generate_role_questions(role_name, job_opening=position, candidate=candidate)
 
 
-def generate_role_questions(role):
-    role_name = (role or "general").strip()
+def generate_role_questions(role, job_opening=None, candidate=None, count=5):
+    position = job_opening or getattr(candidate, "applied_position", None)
+    role_name = (role or getattr(position, "title", "") or "general").strip()
+    department = getattr(position, "department", "") if position else ""
+    description = getattr(position, "description", "") if position else ""
+    jd_text = getattr(position, "jd_text", "") if position else ""
+    required_skills = getattr(position, "required_skills", "") if position else ""
+    experience_required = getattr(position, "experience_required", "") if position else ""
+    skills = _job_skill_list(position)
+    candidate_name = getattr(candidate, "name", "") if candidate else ""
+    session_seed = uuid.uuid4().hex[:12]
     prompt = f"""
-Create exactly 3 concise interview questions for the role below.
+You are conducting a professional AI voice screening interview.
+Create exactly {count} fresh interview questions for the role below.
+
+Rules:
+- Make the questions specific to the role, department, skills, experience, and JD text.
+- Generate a different set for this session. Use the freshness seed only to vary the questions.
+- Include a balanced mix: role fit, technical/domain depth, scenario problem-solving, collaboration, and communication.
+- Do not ask for salary history, protected-class information, personal family details, or confidential employer data.
+- Keep each question concise enough to be read aloud by a voice assistant.
+- Do not include answers, explanations, numbering, markdown, or extra text.
+
 Return only valid JSON with this schema:
-{{"questions": ["question 1", "question 2", "question 3"]}}
+{{"questions": ["question 1", "question 2", "question 3", "question 4", "question 5"]}}
 
 Role: {role_name}
+Department: {department or "Not specified"}
+Experience Required: {experience_required or "Not specified"}
+Candidate Name: {candidate_name or "Not specified"}
+Required Skills: {", ".join(skills) or required_skills or "Not specified"}
+JD Text: {(jd_text or description)[:5000] or "Not specified"}
+Freshness Seed: {session_seed}
 """
-    ai_response = _azure_openai_chat(prompt)
-    parsed = _parse_json_response(ai_response) if ai_response else None
-    if parsed and isinstance(parsed, dict):
-        questions = parsed.get("questions", [])
-        if isinstance(questions, list):
-            normalized = _normalize_skill_list(questions)
-            if len(normalized) >= 3:
-                return normalized[:3]
 
-    fallback = {
-        "python developer": [
-            "Tell me about a Python project you delivered end to end.",
-            "How do you structure maintainable backend code in Python?",
-            "How do you debug performance issues in a Python service?",
-        ],
-        "backend developer": [
-            "Describe a backend system you built and the trade-offs involved.",
-            "How do you design reliable APIs for production use?",
-            "How do you handle database performance and scaling issues?",
-        ],
-        "full stack developer": [
-            "Tell me about a full stack feature you shipped recently.",
-            "How do you keep frontend and backend contracts aligned?",
-            "How do you balance speed of delivery with code quality?",
-        ],
-    }
-    key = role_name.lower()
-    for match_key, questions in fallback.items():
-        if match_key in key:
-            return questions
-    return [
-        f"What interests you most about the {role_name} role?",
-        f"Describe a project that makes you a strong fit for the {role_name} role.",
-        f"How do you handle pressure and changing requirements in a {role_name} job?",
+    fallback_questions = _fallback_interview_questions(
+        role_name,
+        department,
+        skills,
+        count,
+        session_seed,
+    )
+    ai_responses = [
+        _azure_openai_chat(prompt),
+        generate_ai_text(prompt, ""),
     ]
+
+    for ai_response in ai_responses:
+        parsed = _parse_json_response(ai_response) if ai_response else None
+        if isinstance(parsed, dict):
+            raw_questions = parsed.get("questions", [])
+        elif isinstance(parsed, list):
+            raw_questions = parsed
+        else:
+            raw_questions = []
+
+        normalized = _normalize_question_list(raw_questions, count)
+        if normalized:
+            combined = _normalize_question_list([*normalized, *fallback_questions], count)
+            if len(combined) >= count:
+                return combined
+
+    return fallback_questions
 
 
 def evaluate_interview_answer(role, question, transcript, prior_context=""):

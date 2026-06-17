@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 type Employee = { id: number; full_name: string; employee_id: string };
 
 type Attendance = {
-  id: number;
+  id: number | null;
   employee: number;
   date: string;
   check_in: string | null;
@@ -34,15 +34,27 @@ const emptyForm: FormState = {
   status: "PRESENT",
 };
 
+function getBackendMessage(error: any, fallback: string) {
+  return error?.response?.data?.detail || fallback;
+}
+
+function formatAttendanceTime(value?: string | null) {
+  if (!value) return "-";
+  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 export default function AttendancePage() {
   const { user } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [records, setRecords] = useState<Attendance[]>([]);
+  const [todayAttendance, setTodayAttendance] = useState<Attendance | null>(null);
   const [month, setMonth] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   const loadEmployees = async () => {
     const { data } = await api.get("/core/employees/");
@@ -56,8 +68,17 @@ export default function AttendancePage() {
     setRecords(data.results ?? data);
   };
 
+  const loadTodayAttendance = async () => {
+    const { data } = await api.get("/core/attendance/today/");
+    setTodayAttendance(data);
+  };
+
   useEffect(() => {
-    if (user?.role === "EMPLOYEE") return;
+    setError("");
+    if (user?.role === "EMPLOYEE") {
+      loadTodayAttendance().catch((err) => setError(getBackendMessage(err, "Unable to load your attendance status.")));
+      return;
+    }
     Promise.all([loadEmployees(), loadRecords()]).catch(() => setError("Unable to load attendance data."));
   }, [month, user?.role]);
 
@@ -73,6 +94,18 @@ export default function AttendancePage() {
         : "0.00";
     return { present, absent, average };
   }, [records]);
+  const metricCards =
+    user?.role === "EMPLOYEE"
+      ? [
+          ["Today Status", todayAttendance?.status ?? "ABSENT"],
+          ["Check In", formatAttendanceTime(todayAttendance?.check_in)],
+          ["Working Hours", `${todayAttendance?.working_hours ?? "0.00"} hrs`],
+        ]
+      : [
+          ["Present Today", String(stats.present)],
+          ["Absent Today", String(stats.absent)],
+          ["Average Attendance", `${stats.average} hrs`],
+        ];
 
   const resetForm = () => {
     setForm(emptyForm);
@@ -122,13 +155,33 @@ export default function AttendancePage() {
   };
 
   const checkIn = async () => {
-    await api.post("/core/attendance/check_in/");
-    await loadRecords();
+    setChecking(true);
+    setError("");
+    setMessage("");
+    try {
+      const { data } = await api.post("/core/attendance/check_in/");
+      setTodayAttendance(data);
+      setMessage(`Checked in successfully at ${formatAttendanceTime(data.check_in)}.`);
+    } catch (err: any) {
+      setError(getBackendMessage(err, "Unable to check in right now."));
+    } finally {
+      setChecking(false);
+    }
   };
 
   const checkOut = async () => {
-    await api.post("/core/attendance/check_out/");
-    await loadRecords();
+    setChecking(true);
+    setError("");
+    setMessage("");
+    try {
+      const { data } = await api.post("/core/attendance/check_out/");
+      setTodayAttendance(data);
+      setMessage(`Checked out successfully at ${formatAttendanceTime(data.check_out)}.`);
+    } catch (err: any) {
+      setError(getBackendMessage(err, "Unable to check out right now."));
+    } finally {
+      setChecking(false);
+    }
   };
 
   return (
@@ -140,20 +193,22 @@ export default function AttendancePage() {
         </div>
         {user?.role === "EMPLOYEE" ? (
           <div className="flex gap-3">
-            <Button onClick={checkIn}>Check In</Button>
-            <Button variant="secondary" onClick={checkOut}>
-              Check Out
+            <Button onClick={checkIn} disabled={checking || Boolean(todayAttendance?.check_in)}>
+              {checking ? "Saving..." : "Check In"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={checkOut}
+              disabled={checking || !todayAttendance?.check_in || Boolean(todayAttendance?.check_out)}
+            >
+              {checking ? "Saving..." : "Check Out"}
             </Button>
           </div>
         ) : null}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        {[
-          ["Present Today", String(stats.present)],
-          ["Absent Today", String(stats.absent)],
-          ["Average Attendance", `${stats.average} hrs`],
-        ].map(([label, value]) => (
+        {metricCards.map(([label, value]) => (
           <Card key={label}>
             <p className="text-sm text-slate-500">{label}</p>
             <div className="mt-3 text-3xl font-semibold">{value}</div>
@@ -198,8 +253,18 @@ export default function AttendancePage() {
           <Card>
             <h3 className="text-lg font-semibold">Self Service</h3>
             <p className="mt-2 text-sm text-slate-500">
-              Use the check-in and check-out buttons above. Your historical records are managed by HR.
+              Use the check-in and check-out buttons above. You can check in once and check out once per day.
             </p>
+            {message ? (
+              <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                {message}
+              </p>
+            ) : null}
+            {error ? (
+              <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-600 dark:bg-red-500/10 dark:text-red-300">
+                {error}
+              </p>
+            ) : null}
           </Card>
         )}
 
@@ -246,7 +311,12 @@ export default function AttendancePage() {
                           <Button type="button" variant="secondary" onClick={() => startEdit(record)}>
                             Edit
                           </Button>
-                          <Button type="button" variant="ghost" onClick={() => deleteRecord(record.id)}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => record.id !== null && deleteRecord(record.id)}
+                            disabled={record.id === null}
+                          >
                             Delete
                           </Button>
                         </div>
@@ -260,10 +330,25 @@ export default function AttendancePage() {
           </Card>
         ) : (
           <Card>
-            <h3 className="text-lg font-semibold">Your Attendance</h3>
-            <p className="mt-2 text-sm text-slate-500">
-              Check in and out from here. Historical attendance browsing is reserved for HR/admin roles.
-            </p>
+            <h3 className="text-lg font-semibold">Your Attendance Today</h3>
+            <div className="mt-4 grid gap-3 text-sm">
+              <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 dark:bg-slate-900/70">
+                <span className="text-slate-500">Date</span>
+                <span className="font-medium">{todayAttendance?.date ?? "-"}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 dark:bg-slate-900/70">
+                <span className="text-slate-500">Check In</span>
+                <span className="font-medium">{formatAttendanceTime(todayAttendance?.check_in)}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 dark:bg-slate-900/70">
+                <span className="text-slate-500">Check Out</span>
+                <span className="font-medium">{formatAttendanceTime(todayAttendance?.check_out)}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 dark:bg-slate-900/70">
+                <span className="text-slate-500">Status</span>
+                <span className="font-medium">{todayAttendance?.status ?? "ABSENT"}</span>
+              </div>
+            </div>
           </Card>
         )}
       </div>
