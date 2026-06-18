@@ -88,31 +88,150 @@ def calculate_leave_recommendation(employee):
 
 
 def generate_payroll_pdf(payroll):
+    from decimal import Decimal
+
+    from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas
 
+    def amount(value):
+        return Decimal(str(value or 0))
+
+    def money(value):
+        return f"INR {amount(value):,.2f}"
+
+    def safe_filename(value):
+        return "".join(char if char.isalnum() or char in "-_" else "-" for char in str(value))
+
+    employee = payroll.employee
+    basic_salary = amount(payroll.basic_salary)
+    allowances = amount(payroll.allowances)
+    deductions = amount(payroll.deductions)
+    tax = amount(payroll.tax)
+    gross_pay = basic_salary + allowances
+    total_deductions = deductions + tax
+    net_salary = amount(payroll.net_salary)
+
     buffer = BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=A4)
+    pdf = canvas.Canvas(buffer, pagesize=A4, pageCompression=1)
+    width, height = A4
+    margin = 18 * mm
+    navy = colors.HexColor("#0f172a")
+    sky = colors.HexColor("#0ea5e9")
+    emerald = colors.HexColor("#059669")
+    slate = colors.HexColor("#475569")
+    light_slate = colors.HexColor("#f8fafc")
+    border = colors.HexColor("#dbe4ee")
+
+    pdf.setTitle(f"AI-HRMS Payslip - {employee.employee_id} - {payroll.month}")
+    pdf.setFillColor(light_slate)
+    pdf.rect(0, 0, width, height, stroke=0, fill=1)
+
+    pdf.setFillColor(navy)
+    pdf.rect(0, height - 112, width, 112, stroke=0, fill=1)
+    pdf.setFillColor(sky)
+    pdf.roundRect(margin, height - 77, 36, 36, 8, stroke=0, fill=1)
+    pdf.setFillColor(colors.white)
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawCentredString(margin + 18, height - 65, "HR")
+    pdf.setFont("Helvetica-Bold", 24)
+    pdf.drawString(margin + 52, height - 54, "AI-HRMS")
+    pdf.setFont("Helvetica", 10)
+    pdf.setFillColor(colors.HexColor("#cbd5e1"))
+    pdf.drawString(margin + 52, height - 72, "Human Resource Management System")
     pdf.setFont("Helvetica-Bold", 18)
-    pdf.drawString(40, 800, "AI-HRMS Payslip")
-    pdf.setFont("Helvetica", 12)
-    lines = [
-        f"Employee: {payroll.employee.full_name}",
-        f"Month: {payroll.month}",
-        f"Basic Salary: {payroll.basic_salary}",
-        f"Allowances: {payroll.allowances}",
-        f"Deductions: {payroll.deductions}",
-        f"Tax: {payroll.tax}",
-        f"Net Salary: {payroll.net_salary}",
+    pdf.setFillColor(colors.white)
+    pdf.drawRightString(width - margin, height - 52, "Salary Payslip")
+    pdf.setFont("Helvetica", 10)
+    pdf.setFillColor(colors.HexColor("#cbd5e1"))
+    pdf.drawRightString(width - margin, height - 70, f"Pay Period: {payroll.month}")
+    pdf.drawRightString(width - margin, height - 86, f"Generated: {timezone.localdate().isoformat()}")
+
+    y = height - 145
+    pdf.setFillColor(colors.white)
+    pdf.roundRect(margin, y - 80, width - (2 * margin), 94, 8, stroke=0, fill=1)
+    pdf.setStrokeColor(border)
+    pdf.roundRect(margin, y - 80, width - (2 * margin), 94, 8, stroke=1, fill=0)
+
+    pdf.setFillColor(navy)
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawString(margin + 18, y - 12, employee.full_name)
+    pdf.setFillColor(slate)
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(margin + 18, y - 31, f"Employee ID: {employee.employee_id}")
+    pdf.drawString(margin + 18, y - 49, f"Department: {employee.department}")
+    pdf.drawString(margin + 18, y - 67, f"Designation: {employee.designation}")
+
+    pdf.setFillColor(emerald)
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawRightString(width - margin - 18, y - 12, "NET PAY")
+    pdf.setFont("Helvetica-Bold", 22)
+    pdf.drawRightString(width - margin - 18, y - 40, money(net_salary))
+    pdf.setFillColor(slate)
+    pdf.setFont("Helvetica", 9)
+    pdf.drawRightString(width - margin - 18, y - 59, "Amount payable for this period")
+
+    table_top = y - 120
+    table_left = margin
+    table_width = width - (2 * margin)
+    row_height = 30
+    col_width = table_width / 4
+
+    pdf.setFillColor(navy)
+    pdf.roundRect(table_left, table_top, table_width, row_height, 6, stroke=0, fill=1)
+    pdf.setFillColor(colors.white)
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(table_left + 14, table_top + 10, "Earnings")
+    pdf.drawString(table_left + (2 * col_width) + 14, table_top + 10, "Deductions")
+
+    rows = [
+        ("Basic Salary", money(basic_salary), "Deductions", money(deductions)),
+        ("Allowances", money(allowances), "Tax", money(tax)),
+        ("Gross Pay", money(gross_pay), "Total Deductions", money(total_deductions)),
     ]
-    y = 760
-    for line in lines:
-        pdf.drawString(40, y, line)
-        y -= 24
+
+    pdf.setFont("Helvetica", 10)
+    for index, (earning_label, earning_value, deduction_label, deduction_value) in enumerate(rows):
+        row_y = table_top - ((index + 1) * row_height)
+        pdf.setFillColor(colors.white if index % 2 == 0 else colors.HexColor("#f1f5f9"))
+        pdf.rect(table_left, row_y, table_width, row_height, stroke=0, fill=1)
+        pdf.setStrokeColor(border)
+        pdf.line(table_left, row_y, table_left + table_width, row_y)
+        pdf.line(table_left + (2 * col_width), row_y, table_left + (2 * col_width), row_y + row_height)
+        pdf.setFillColor(slate)
+        pdf.drawString(table_left + 14, row_y + 10, earning_label)
+        pdf.drawString(table_left + (2 * col_width) + 14, row_y + 10, deduction_label)
+        pdf.setFillColor(navy)
+        pdf.drawRightString(table_left + (2 * col_width) - 14, row_y + 10, earning_value)
+        pdf.drawRightString(table_left + table_width - 14, row_y + 10, deduction_value)
+
+    summary_y = table_top - (4 * row_height) - 20
+    pdf.setFillColor(colors.HexColor("#ecfdf5"))
+    pdf.roundRect(margin, summary_y - 48, table_width, 62, 8, stroke=0, fill=1)
+    pdf.setStrokeColor(colors.HexColor("#a7f3d0"))
+    pdf.roundRect(margin, summary_y - 48, table_width, 62, 8, stroke=1, fill=0)
+    pdf.setFillColor(emerald)
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(margin + 18, summary_y - 10, "Net Salary Payable")
+    pdf.setFont("Helvetica-Bold", 18)
+    pdf.drawRightString(width - margin - 18, summary_y - 14, money(net_salary))
+    pdf.setFillColor(slate)
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(margin + 18, summary_y - 31, "This is a system-generated payslip and does not require a physical signature.")
+
+    footer_y = 60
+    pdf.setStrokeColor(border)
+    pdf.line(margin, footer_y + 28, width - margin, footer_y + 28)
+    pdf.setFillColor(slate)
+    pdf.setFont("Helvetica", 8)
+    pdf.drawString(margin, footer_y + 10, "AI-HRMS Payroll")
+    pdf.drawRightString(width - margin, footer_y + 10, "Confidential employee compensation document")
     pdf.showPage()
     pdf.save()
     buffer.seek(0)
-    return ContentFile(buffer.read(), name=f"payslip-{payroll.employee.employee_id}-{payroll.month}.pdf")
+    filename = f"payslip-{safe_filename(employee.employee_id)}-{safe_filename(payroll.month)}.pdf"
+    return ContentFile(buffer.read(), name=filename)
 
 
 def calculate_working_hours(check_in, check_out):

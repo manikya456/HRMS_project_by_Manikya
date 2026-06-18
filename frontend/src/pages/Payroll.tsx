@@ -41,6 +41,13 @@ function money(value: number) {
   return `Rs. ${value.toFixed(2)}`;
 }
 
+function resolveBackendFileUrl(url: string) {
+  if (/^https?:\/\//i.test(url)) return url;
+  const apiBaseUrl = api.defaults.baseURL ?? "http://localhost:8000/api";
+  const backendOrigin = new URL(apiBaseUrl, window.location.origin).origin;
+  return `${backendOrigin}${url}`;
+}
+
 export default function PayrollPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
@@ -147,9 +154,17 @@ export default function PayrollPage() {
   };
 
   const openPayslip = async (id: number) => {
-    const { data } = await api.get(`/core/payroll/${id}/payslip/`);
-    if (data.url) {
-      window.open(data.url, "_blank", "noopener,noreferrer");
+    setError("");
+    try {
+      const { data } = await api.get(`/core/payroll/${id}/payslip/`);
+      if (data.url) {
+        const payslipUrl = resolveBackendFileUrl(data.url);
+        const separator = payslipUrl.includes("?") ? "&" : "?";
+        window.open(`${payslipUrl}${separator}v=${Date.now()}`, "_blank", "noopener,noreferrer");
+        await loadPayrolls();
+      }
+    } catch {
+      setError("Unable to open payslip.");
     }
   };
 
@@ -274,7 +289,7 @@ export default function PayrollPage() {
                       <td className="py-4 pr-4">{employee?.full_name ?? `#${payroll.employee}`}</td>
                       <td className="py-4 pr-4">{payroll.month}</td>
                       <td className="py-4 pr-4">{money(Number(payroll.net_salary || 0))}</td>
-                      <td className="py-4 pr-4">{payroll.payslip_pdf ? "Available" : "Pending"}</td>
+                      <td className="py-4 pr-4">{payroll.payslip_pdf ? "Available" : "Generated on download"}</td>
                       <td className="py-4 pr-4">
                         <div className="flex flex-wrap gap-2">
                           <Button type="button" variant="secondary" onClick={() => startEdit(payroll)}>
@@ -283,7 +298,7 @@ export default function PayrollPage() {
                           <Button type="button" variant="ghost" onClick={() => deletePayroll(payroll.id)}>
                             Delete
                           </Button>
-                          <Button type="button" onClick={() => openPayslip(payroll.id)} disabled={!payroll.payslip_pdf}>
+                          <Button type="button" onClick={() => openPayslip(payroll.id)}>
                             Download
                           </Button>
                         </div>

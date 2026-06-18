@@ -16,7 +16,7 @@ from .serializers import (
     PayrollSerializer,
     PerformanceSerializer,
 )
-from .services import calculate_working_hours
+from .services import calculate_working_hours, generate_payroll_pdf
 
 
 class HRChatAPIView(APIView):
@@ -174,9 +174,12 @@ class PayrollViewSet(viewsets.ModelViewSet):
     @decorators.action(detail=True, methods=["get"])
     def payslip(self, request, pk=None):
         payroll = self.get_object()
-        if payroll.payslip_pdf:
-            return response.Response({"url": payroll.payslip_pdf.url})
-        return response.Response({"detail": "Payslip not generated."}, status=status.HTTP_404_NOT_FOUND)
+        has_file = bool(payroll.payslip_pdf)
+        if has_file and payroll.payslip_pdf.storage.exists(payroll.payslip_pdf.name):
+            payroll.payslip_pdf.delete(save=False)
+        pdf_file = generate_payroll_pdf(payroll)
+        payroll.payslip_pdf.save(pdf_file.name, pdf_file, save=True)
+        return response.Response({"url": request.build_absolute_uri(payroll.payslip_pdf.url)})
 
 
 class PerformanceViewSet(viewsets.ModelViewSet):
