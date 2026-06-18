@@ -266,7 +266,7 @@ def interview_questions(candidate):
     return generate_role_questions(role_name, job_opening=position, candidate=candidate)
 
 
-def generate_role_questions(role, job_opening=None, candidate=None, count=5):
+def generate_role_questions(role, job_opening=None, candidate=None, count=3):
     position = job_opening or getattr(candidate, "applied_position", None)
     role_name = (role or getattr(position, "title", "") or "general").strip()
     department = getattr(position, "department", "") if position else ""
@@ -290,7 +290,7 @@ Rules:
 - Do not include answers, explanations, numbering, markdown, or extra text.
 
 Return only valid JSON with this schema:
-{{"questions": ["question 1", "question 2", "question 3", "question 4", "question 5"]}}
+{{"questions": ["question 1", "question 2", "question 3"]}}
 
 Role: {role_name}
 Department: {department or "Not specified"}
